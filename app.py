@@ -143,6 +143,10 @@ if "messages" not in st.session_state:
     st.session_state.messages = [{"role": "system", "content": SYSTEM_PROMPT}]
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
+if "ultimo_audio_procesado" not in st.session_state:
+    st.session_state.ultimo_audio_procesado = None
+if "ultimo_archivo_procesado" not in st.session_state:
+    st.session_state.ultimo_archivo_procesado = None
 
 # ============================================================
 # FUNCIÓN DE TRANSCRIPCIÓN
@@ -284,6 +288,8 @@ if st.session_state.chat_history:
         if st.button("🗑️ Nueva conversación", key="nueva_conv"):
             st.session_state.messages = [{"role": "system", "content": SYSTEM_PROMPT}]
             st.session_state.chat_history = []
+            st.session_state.ultimo_audio_procesado = None
+            st.session_state.ultimo_archivo_procesado = None
             st.rerun()
 
 st.divider()
@@ -317,11 +323,11 @@ with st.container(key="panel_inferior"):
                 pause_threshold=2.0,
                 key="micro"
             )
-            if audio_bytes:
+            if audio_bytes and audio_bytes != st.session_state.ultimo_audio_procesado:
+                st.session_state.ultimo_audio_procesado = audio_bytes
                 with st.spinner("Transcribiendo desde el micrófono..."):
                     texto = transcribir_audio(audio_bytes, "grabacion.wav")
                 if texto:
-                    st.success(f"📄 **Transcripción:** {texto}")
                     with st.spinner("Pensando..."):
                         respuesta = generar_respuesta(texto)
                     st.session_state.chat_history.append({"role": "user", "content": texto})
@@ -336,16 +342,18 @@ with st.container(key="panel_inferior"):
             )
             if uploaded_file:
                 st.audio(uploaded_file)
+                file_id = f"{uploaded_file.name}_{uploaded_file.size}"
                 if st.button("📝 Transcribir archivo"):
-                    with st.spinner("Transcribiendo archivo..."):
-                        texto = transcribir_audio(uploaded_file.read(), uploaded_file.name)
-                    if texto:
-                        st.success(f"📄 **Transcripción:** {texto}")
-                        with st.spinner("Pensando..."):
-                            respuesta = generar_respuesta(texto)
-                        st.session_state.chat_history.append({"role": "user", "content": texto})
-                        st.session_state.chat_history.append({"role": "assistant", "content": respuesta})
-                        st.rerun()
+                    if file_id != st.session_state.ultimo_archivo_procesado:
+                        st.session_state.ultimo_archivo_procesado = file_id
+                        with st.spinner("Transcribiendo archivo..."):
+                            texto = transcribir_audio(uploaded_file.read(), uploaded_file.name)
+                        if texto:
+                            with st.spinner("Pensando..."):
+                                respuesta = generar_respuesta(texto)
+                            st.session_state.chat_history.append({"role": "user", "content": texto})
+                            st.session_state.chat_history.append({"role": "assistant", "content": respuesta})
+                            st.rerun()
 
     # 2) Input de texto DEBAJO del expander
     if prompt := st.chat_input("Escribe tu consulta aquí..."):
